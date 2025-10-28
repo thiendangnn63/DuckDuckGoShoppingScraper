@@ -39,6 +39,17 @@ def check_valid_brand_name(potential_brand):
         return False
     return True
 
+def clean_price(price_str):
+    if not isinstance(price_str, str):
+        return None
+    match = re.search(r'(\d{1,3}(?:[,.]\d{3})*(?:[.,]\d{1,2})?|\d+(?:[.,]\d{1,2})?)', price_str)
+    if match:
+        price_value = match.group(1).replace(',', '')
+        try:
+            return float(price_value)
+        except ValueError:
+            return None
+    return None
 
 def scrape_duckduckgo(playwright, query, NUM_ITEMS):
     user_data_path = os.path.join(os.getcwd(), "playwright_data")
@@ -96,6 +107,7 @@ def scrape_duckduckgo(playwright, query, NUM_ITEMS):
 
         base_url = page.url
         
+        count = 0
         for element_handle in li_elements:
             item_data = {
                 'ProductName': 'N/A',
@@ -128,7 +140,7 @@ def scrape_duckduckgo(playwright, query, NUM_ITEMS):
                 for span in span_elements:
                     text = span.inner_text().strip()
                     if text.startswith('$') and not price_found:
-                        item_data['Price'] = text.replace('$', '').strip()
+                        item_data['Price'] = clean_price(text.replace('$', '').strip())
                         price_found = True
                     elif text.startswith('(') and text.endswith(')') and not review_found:
                         review_text = text.replace('(', '').replace(')', '').strip()
@@ -143,6 +155,9 @@ def scrape_duckduckgo(playwright, query, NUM_ITEMS):
 
             if item_data['ProductName'] != 'N/A' and item_data['Price'] != 'N/A':
                 phase1_items.append(item_data)
+            count += 1
+            if count > NUM_ITEMS:
+                break
 
         print(f"Finished Phase 1. {len(phase1_items)} unique potentially valid items extracted.")
         
@@ -157,10 +172,10 @@ def scrape_duckduckgo(playwright, query, NUM_ITEMS):
 
     return phase1_items
 
-if __name__ == '__main__':
+def run():
     with sync_playwright() as playwright:
         query = input("Enter your search query: ")
-        NUM_ITEMS = 500
+        NUM_ITEMS = int(input("Enter the number of items to scrape: "))
         phase1_results = scrape_duckduckgo(playwright, query, NUM_ITEMS)
 
         if phase1_results:
@@ -173,3 +188,5 @@ if __name__ == '__main__':
              print(f"Phase 1 results saved to {output_file_phase1}")
         else:
              print("\nNo initial items found in Phase 1. Exiting.")
+
+run()
